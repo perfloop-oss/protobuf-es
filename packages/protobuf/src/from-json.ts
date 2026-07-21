@@ -244,7 +244,11 @@ function readMessage(
   }
   const oneofSeen = new Map<DescOneof, DescField>();
   const fieldSeen = new Set<DescField>();
-  for (const [jsonKey, jsonValue] of Object.entries(json)) {
+  for (const jsonKey in json) {
+    if (!Object.prototype.hasOwnProperty.call(json, jsonKey)) {
+      continue;
+    }
+    const jsonValue = json[jsonKey];
     const field = getJsonField(msg.desc, jsonKey);
     if (field) {
       if (fieldSeen.has(field)) {
