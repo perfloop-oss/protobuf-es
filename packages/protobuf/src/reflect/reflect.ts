@@ -74,6 +74,10 @@ export function reflect<Desc extends DescMessage>(
 }
 
 const messageSortedFields = new WeakMap<DescMessage, DescField[]>();
+const messageFieldsByNumber = new WeakMap<
+  DescMessage,
+  Map<number, DescField>
+>();
 
 class ReflectMessageImpl implements ReflectMessage {
   readonly desc: DescMessage;
@@ -94,7 +98,6 @@ class ReflectMessageImpl implements ReflectMessage {
   readonly oneofs: readonly DescOneof[];
   readonly [unsafeLocal]: Message;
   private readonly check: boolean;
-  private _fieldsByNumber: Map<number, DescField> | undefined;
   private lists = new Map<DescField, ReflectList>();
   private maps = new Map<DescField, ReflectMap>();
 
@@ -108,12 +111,14 @@ class ReflectMessageImpl implements ReflectMessage {
   }
 
   findNumber(number: number): DescField | undefined {
-    if (!this._fieldsByNumber) {
-      this._fieldsByNumber = new Map<number, DescField>(
+    let fieldsByNumber = messageFieldsByNumber.get(this.desc);
+    if (fieldsByNumber === undefined) {
+      fieldsByNumber = new Map<number, DescField>(
         this.desc.fields.map((f) => [f.number, f]),
       );
+      messageFieldsByNumber.set(this.desc, fieldsByNumber);
     }
-    return this._fieldsByNumber.get(number);
+    return fieldsByNumber.get(number);
   }
 
   oneofCase(oneof: DescOneof): DescField | undefined {
