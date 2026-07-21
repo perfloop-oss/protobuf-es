@@ -26,6 +26,7 @@ import {
   setExtension,
   getExtension,
   mergeFromJsonString,
+  mergeFromJson,
   protoInt64,
 } from "@bufbuild/protobuf";
 import {
@@ -971,6 +972,93 @@ void suite("JsonWriteOptions", () => {
         scalar_field: "a",
       });
     });
+  });
+});
+
+void suite("fromJson own key iteration", () => {
+  test("does not enumerate a proxy prototype", () => {
+    const prototype = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("fromJson must not enumerate the prototype");
+        },
+      },
+    );
+    const json = Object.create(prototype) as Record<string, JsonValue>;
+    json.singularStringField = "own value";
+
+    const message = fromJson(proto3_ts.Proto3MessageSchema, json);
+
+    assert.strictEqual(message.singularStringField, "own value");
+  });
+
+  test("does not read an inherited alias after its own key is deleted", () => {
+    const makeJson = (): Record<string, JsonValue> => {
+      const prototype = {};
+      Object.defineProperty(prototype, "singular_string_field", {
+        enumerable: true,
+        get() {
+          throw new Error("fromJson must not read inherited JSON keys");
+        },
+      });
+      const json = Object.create(prototype) as Record<string, JsonValue>;
+      Object.defineProperties(json, {
+        singularStringField: {
+          configurable: true,
+          enumerable: true,
+          get() {
+            delete json.singular_string_field;
+            return "first";
+          },
+        },
+        singular_string_field: {
+          configurable: true,
+          enumerable: true,
+          value: "second",
+        },
+      });
+      return json;
+    };
+
+    assert.strictEqual(
+      fromJson(proto3_ts.Proto3MessageSchema, makeJson()).singularStringField,
+      "first",
+    );
+    assert.strictEqual(
+      mergeFromJson(
+        proto3_ts.Proto3MessageSchema,
+        create(proto3_ts.Proto3MessageSchema),
+        makeJson(),
+      ).singularStringField,
+      "first",
+    );
+  });
+
+  test("does not process an own alias made non-enumerable", () => {
+    const json: Record<string, JsonValue> = {};
+    Object.defineProperties(json, {
+      singularStringField: {
+        configurable: true,
+        enumerable: true,
+        get() {
+          Object.defineProperty(json, "singular_string_field", {
+            enumerable: false,
+          });
+          return "first";
+        },
+      },
+      singular_string_field: {
+        configurable: true,
+        enumerable: true,
+        value: "second",
+      },
+    });
+
+    assert.strictEqual(
+      fromJson(proto3_ts.Proto3MessageSchema, json).singularStringField,
+      "first",
+    );
   });
 });
 
