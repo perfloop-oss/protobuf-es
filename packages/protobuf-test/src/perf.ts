@@ -33,6 +33,7 @@ import {
   MessageFieldMessage_TestMessageSchema,
 } from "./gen/ts/extra/msg-message_pb.js";
 import { PerfMessageSchema } from "./gen/ts/extra/perf_pb.js";
+import { Proto3MessageSchema } from "./gen/ts/extra/proto3_pb.js";
 import * as console from "node:console";
 
 /* eslint-disable no-console, import/no-named-as-default-member */
@@ -207,6 +208,19 @@ function setupTests(): Test[] {
       }),
     },
     {
+      name: "field-rich repeated message children",
+      desc: Proto3MessageSchema,
+      msg: (() => {
+        const message = create(Proto3MessageSchema);
+        for (let i = 0; i < 1000; i++) {
+          message.repeatedMessageField.push(
+            create(Proto3MessageSchema, { singularInt32Field: i + 1 }),
+          );
+        }
+        return message;
+      })(),
+    },
+    {
       name: "repeated field with 1000 messages",
       desc: MessageFieldMessageSchema,
       msg: (() => {
@@ -232,12 +246,22 @@ function setupTests(): Test[] {
     },
   ].flatMap(({ name, msg, desc }) => {
     const bytes = toBinary(desc, msg);
+    // Alternate equal wire payloads so each measured decode consumes a runtime
+    // value rather than a constant-foldable fixture.
+    const binaryInputs = [bytes, bytes.slice()];
+    let binaryInputIndex = 0;
     const jsonString = toJsonString(desc, msg);
     return [
       {
         name: `fromBinary ${name}`,
         fn: () => {
-          fromBinary(desc, bytes);
+          const decoded = fromBinary(
+            desc,
+            binaryInputs[binaryInputIndex++ & 1],
+          );
+          if (decoded.$typeName !== desc.typeName) {
+            throw new Error(`decoded ${name} with the wrong descriptor`);
+          }
         },
       },
       {
