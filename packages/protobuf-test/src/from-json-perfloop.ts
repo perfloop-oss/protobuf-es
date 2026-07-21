@@ -77,9 +77,9 @@ function runBenchmark(workload: Workload): void {
     },
     {
       async: false,
-      maxTime: 0.5,
-      minSamples: 5,
-      minTime: 0.05,
+      maxTime: 5,
+      minSamples: 20,
+      minTime: 0.1,
     },
   );
   benchmark.run();
